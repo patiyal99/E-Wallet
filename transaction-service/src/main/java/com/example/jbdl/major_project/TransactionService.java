@@ -13,6 +13,7 @@ import javax.swing.*;
 import static com.example.jbdl.major_project.CommonConstants.*;
 import static  com.example.jbdl.major_project.TransactionStatus.PENDING;
 
+import java.util.Date;
 import java.util.UUID;
 
 @Service
@@ -60,40 +61,38 @@ public class TransactionService {
         String sender = (String) walletUpdate.get(SENDER_ATTRIBUTE);
         Double amount = (Double) walletUpdate.get(AMOUNT_ATTRIBUTE);
 
-        TransactionStatus transactionStatus=TransactionStatus.FAILED;
+        String status;
 
         if(WALLET_UPDATE_SUCCESS_STATUS.equals(walletUpdateStatus)){
-            transactionStatus=TransactionStatus.SUCCESS;
+            status=TRANSACTION_SUCCESS_STATUS;
             transactionRepository.updateTxn(transactionId,TransactionStatus.SUCCESS);
         }else{
+            status=TRANSACTION_FAILED_STATUS;
             transactionRepository.updateTxn(transactionId,TransactionStatus.FAILED);
         }
 
         //failed - sender
         //success - sender,receiver
-        String senderSuccessMsg="Transaction with ID "+ transactionId + " has been completed .Your account has been debited by amount"+ amount ;
-        String senderFailedMsg="Transaction with ID "+ transactionId + " got failed. Please try again.";
-        String receiverMsg="You have received payment of " + amount + " from " + sender;
-
-        String senderMsg = WALLET_UPDATE_SUCCESS_STATUS.equals(walletUpdateStatus) ? senderSuccessMsg: senderFailedMsg;
 
 
         JSONObject jsonObject=new JSONObject();
         jsonObject.put(EMAIL_ATTRIBUTE,sender);
-        jsonObject.put("isSender",true);
+        jsonObject.put(ACTOR_TYPE_ATTRIBUTE,ACTOR_SENDER_ATTRIBUTE);
         jsonObject.put(AMOUNT_ATTRIBUTE,amount);
         jsonObject.put(TRANSACTION_ID_ATTRIBUTE,transactionId);
-        jsonObject.put(TRANSACTION_STATUS_ATTRIBUTE,transactionStatus.name());
+        jsonObject.put(TRANSACTION_STATUS_ATTRIBUTE,status);
+        jsonObject.put(TRANSACTION_TIME_ATTRIBUTE, new Date());
 
         kafkaTemplate.send(TRANSACTION_COMPLETE_KAFKA_TOPIC,objectMapper.writeValueAsString(jsonObject));
 
         if(WALLET_UPDATE_SUCCESS_STATUS.equals(walletUpdateStatus)){
             jsonObject=new JSONObject();
             jsonObject.put(EMAIL_ATTRIBUTE,receiver);
-            jsonObject.put("isSender",false);
+            jsonObject.put(ACTOR_TYPE_ATTRIBUTE,ACTOR_RECEIVER_ATTRIBUTE);
             jsonObject.put(AMOUNT_ATTRIBUTE,amount);
             jsonObject.put(TRANSACTION_ID_ATTRIBUTE,transactionId);
-            jsonObject.put(TRANSACTION_STATUS_ATTRIBUTE,transactionStatus.name());
+            jsonObject.put(TRANSACTION_STATUS_ATTRIBUTE,status);
+            jsonObject.put(TRANSACTION_TIME_ATTRIBUTE, new Date());
 
             kafkaTemplate.send(TRANSACTION_COMPLETE_KAFKA_TOPIC,objectMapper.writeValueAsString(jsonObject));
         }
